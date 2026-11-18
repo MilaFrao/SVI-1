@@ -24,14 +24,5 @@ Detalle completo de capas, features y rutas en `docs/ESTRUCTURA_PROYECTO.md`.
 |---|---|
 | `docs/GUIA_INICIO.md` | Cómo levantar el entorno de desarrollo, paso a paso |
 | `docs/ESTRUCTURA_PROYECTO.md` | Organización de carpetas y rutas de la API |
-| `docs/VERSION_CONTROL.md` | Reglas de Git, ramas y commits |
 
 Empieza por `GUIA_INICIO.md` si es tu primera vez en el proyecto.
-
----
-
-# 3. Reglas clave
-
-- Las tablas legacy (`INVENTARIO`, `MOVTOMAFISICA1`, etc.) se respetan tal cual son — nunca se modifican.
-- Commits en español, formato `<tipo>: <descripción>`, un cambio coherente por commit.
-- Nunca subir secretos ni cadenas de conexión reales — usar archivos `*.example`.
