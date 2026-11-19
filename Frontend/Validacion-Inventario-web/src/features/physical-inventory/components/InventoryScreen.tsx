@@ -3,8 +3,11 @@ import { useEffect, useState } from "react";
 import { HardDrive, RefreshCw } from "lucide-react";
 import { usePhysicalInventory } from "../hooks/usePhysicalInventory";
 import { PhysicalInventoryTable } from "./PhysicalInventoryTable";
+import { UndoToast } from "./UndoToast";
 import { updateVerification } from "../../inventory-verification/services/inventoryVerificationService";
-import type { PhysicalInventoryItem } from "../types/physicalInventory";
+import { useVerificationTransitions } from "../../inventory-verification/hooks/useVerificationTransitions";
+import { VerificationTabs, type PestanaVerificacion } from "../../inventory-verification/components/VerificationTabs";
+import { getRowKey, type PhysicalInventoryItem } from "../types/physicalInventory";
 import { ExportMenu } from "../../export/components/ExportMenu";
 
 interface InventoryScreenProps {
@@ -14,25 +17,54 @@ interface InventoryScreenProps {
 }
 
 export function InventoryScreen({ server, database, onDisconnect }: InventoryScreenProps) {
-  const { data, loading, error, refresh } = usePhysicalInventory();
+  const { data, loading, error, refresh, setEstadoVerificacion } = usePhysicalInventory();
+  const { enTransicion, agregar, quitar, cerrar } = useVerificationTransitions();
   const [estadoFiltro, setEstadoFiltro] = useState<"Todos" | "Correcto" | "Alerta">("Todos");
-  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [pestana, setPestana] = useState<PestanaVerificacion>("porVerificar");
+  const [guardando, setGuardando] = useState<Set<string>>(() => new Set());
   const [verificationError, setVerificationError] = useState<string | null>(null);
-
-  const filteredData = data.filter((item) => {
-    if (estadoFiltro === "Todos") return true;
-    if (estadoFiltro === "Correcto") return item.estado === "Correcto";
-    return item.estado !== "Correcto";
-  });
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  const handleToggleVerificado = async (item: PhysicalInventoryItem, verificado: boolean) => {
+  // Contadores de las pestañas: estado real, sin filtro de estado ni transiciones
+  const conteos = {
+    porVerificar: data.filter((item) => item.estadoVerificacion !== "Verificado").length,
+    verificadas: data.filter((item) => item.estadoVerificacion === "Verificado").length,
+  };
+
+  const filas = data
+    .filter((item) => {
+      if (estadoFiltro === "Todos") return true;
+      if (estadoFiltro === "Correcto") return item.estado === "Correcto";
+      return item.estado !== "Correcto";
+    })
+    .filter((item) => {
+      // Mientras está en transición, la fila se queda en la pestaña donde se cambió (XOR)
+      const verificada = item.estadoVerificacion === "Verificado";
+      const transicion = enTransicion.has(getRowKey(item));
+      const pestanaDeLaFila: PestanaVerificacion = verificada !== transicion ? "verificadas" : "porVerificar";
+      return pestanaDeLaFila === pestana;
+    });
+
+  const marcarGuardando = (key: string, activo: boolean) =>
+    setGuardando((prev) => {
+      const next = new Set(prev);
+      if (activo) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+
+  // Actualización optimista: la pantalla cambia de una vez y, si el guardado falla, se revierte
+  const guardarVerificacion = async (item: PhysicalInventoryItem, verificado: boolean, conTransicion: boolean) => {
+    const key = getRowKey(item);
+    const anterior = item.estadoVerificacion;
+
     setVerificationError(null);
-    const key = `${item.numeroPagina}-${item.codigoBarra}`;
-    setSavingKey(key);
+    setEstadoVerificacion(key, verificado ? "Verificado" : "Pendiente");
+    if (conTransicion) agregar(key);
+    marcarGuardando(key, true);
 
     try {
       await updateVerification({
@@ -40,13 +72,40 @@ export function InventoryScreen({ server, database, onDisconnect }: InventoryScr
         codigoBarra: item.codigoBarra,
         verificado,
       });
-      await refresh();
     } catch {
+      setEstadoVerificacion(key, anterior);
+      quitar(key);
       setVerificationError("No fue posible guardar la verificación. Intenta de nuevo.");
     } finally {
-      setSavingKey(null);
+      marcarGuardando(key, false);
     }
   };
+
+  const handleToggleVerificado = (item: PhysicalInventoryItem, verificado: boolean) => {
+    void guardarVerificacion(item, verificado, true);
+  };
+
+  // Revierte todo el lote: envía el valor contrario sin iniciar una transición nueva
+  const handleDeshacer = () => {
+    const filasDelLote = data.filter((item) => enTransicion.has(getRowKey(item)));
+    cerrar();
+    filasDelLote.forEach((item) => {
+      void guardarVerificacion(item, item.estadoVerificacion !== "Verificado", false);
+    });
+  };
+
+  // Cambiar de pestaña o actualizar cierra el lote: las filas se mueven de inmediato
+  const cambiarPestana = (nueva: PestanaVerificacion) => {
+    cerrar();
+    setPestana(nueva);
+  };
+
+  const handleActualizar = () => {
+    cerrar();
+    void refresh();
+  };
+
+  const loteGuardando = [...enTransicion].some((key) => guardando.has(key));
 
   return (
     <div className="min-h-screen bg-[#f4f4f5] flex flex-col font-sans selection:bg-blue-100">
@@ -70,29 +129,32 @@ export function InventoryScreen({ server, database, onDisconnect }: InventoryScr
         </div>
       </header>
 
-      <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-end shrink-0 gap-4">
-        <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
-          <span>Estado</span>
-          <select
-            value={estadoFiltro}
-            onChange={(event) => setEstadoFiltro(event.target.value as "Todos" | "Correcto" | "Alerta")}
-            className="border border-gray-200 rounded-md bg-gray-50 px-2.5 py-1.5 text-xs text-gray-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20"
-          >
-            <option value="Todos">Todos</option>
-            <option value="Correcto">Correcto</option>
-            <option value="Alerta">Alerta, verificar</option>
-          </select>
-        </label>
-        <div className="flex items-center gap-2">
-          <ExportMenu data={data} />
-          <button
-            onClick={() => refresh()}
-            disabled={loading}
-            className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-md text-xs font-medium text-gray-700 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-            {loading ? "Actualizando..." : "Actualizar"}
-          </button>
+      <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shrink-0 gap-4">
+        <VerificationTabs activa={pestana} onChange={cambiarPestana} conteos={conteos} />
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
+            <span>Estado</span>
+            <select
+              value={estadoFiltro}
+              onChange={(event) => setEstadoFiltro(event.target.value as "Todos" | "Correcto" | "Alerta")}
+              className="border border-gray-200 rounded-md bg-gray-50 px-2.5 py-1.5 text-xs text-gray-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20"
+            >
+              <option value="Todos">Todos</option>
+              <option value="Correcto">Correcto</option>
+              <option value="Alerta">Alerta, verificar</option>
+            </select>
+          </label>
+          <div className="flex items-center gap-2">
+            <ExportMenu data={data} />
+            <button
+              onClick={handleActualizar}
+              disabled={loading}
+              className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-md text-xs font-medium text-gray-700 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+              {loading ? "Actualizando..." : "Actualizar"}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -104,11 +166,24 @@ export function InventoryScreen({ server, database, onDisconnect }: InventoryScr
 
       <main className="flex-1 p-6 overflow-hidden flex flex-col">
         <PhysicalInventoryTable
-          data={filteredData}
+          data={filas}
           onToggleVerificado={handleToggleVerificado}
-          savingKey={savingKey}
+          guardando={guardando}
+          enTransicion={enTransicion}
+          mensajeVacio={
+            pestana === "porVerificar" && conteos.porVerificar === 0 && data.length > 0
+              ? "Todo verificado."
+              : "No hay registros para mostrar."
+          }
         />
       </main>
+
+      <UndoToast
+        cantidad={enTransicion.size}
+        accion={pestana === "porVerificar" ? "verificar" : "devolver"}
+        onDeshacer={handleDeshacer}
+        deshabilitado={loteGuardando}
+      />
     </div>
   );
 }

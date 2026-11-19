@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { getPhysicalInventory } from "../services/physicalInventoryService";
-import type { PhysicalInventoryItem } from "../types/physicalInventory";
+import { getRowKey, type EstadoVerificacion, type PhysicalInventoryItem } from "../types/physicalInventory";
 
 export function usePhysicalInventory() {
     const [data, setData] = useState<PhysicalInventoryItem[]>([]);
@@ -20,5 +20,12 @@ export function usePhysicalInventory() {
         }
     }, []);
 
-    return { data, loading, error, refresh };
+    // Cambia el estado de verificación de una fila en memoria, sin volver a consultar SQL Server
+    const setEstadoVerificacion = useCallback((key: string, estado: EstadoVerificacion) => {
+        setData((prev) =>
+            prev.map((item) => (getRowKey(item) === key ? { ...item, estadoVerificacion: estado } : item))
+        );
+    }, []);
+
+    return { data, loading, error, refresh, setEstadoVerificacion };
 }

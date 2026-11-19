@@ -2,7 +2,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { CheckCircle2, AlertCircle } from "lucide-react";
-import type { PhysicalInventoryItem } from "../types/physicalInventory";
+import { getRowKey, type PhysicalInventoryItem } from "../types/physicalInventory";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -11,7 +11,9 @@ function cn(...inputs: ClassValue[]) {
 interface PhysicalInventoryTableProps {
   data: PhysicalInventoryItem[];
   onToggleVerificado: (item: PhysicalInventoryItem, verificado: boolean) => void;
-  savingKey: string | null; // `${numeroPagina}-${codigoBarra}` de la fila en proceso de guardado
+  guardando: Set<string>;     // claves (getRowKey) de las filas que se están guardando
+  enTransicion: Set<string>;  // claves de las filas del lote que todavía no cambian de pestaña
+  mensajeVacio: string;
 }
 
 function rowShade(estadoVerificacion: PhysicalInventoryItem["estadoVerificacion"]) {
@@ -25,7 +27,20 @@ function rowShade(estadoVerificacion: PhysicalInventoryItem["estadoVerificacion"
   }
 }
 
-export function PhysicalInventoryTable({ data, onToggleVerificado, savingKey }: PhysicalInventoryTableProps) {
+// Las columnas fijas necesitan un fondo opaco para tapar lo que pasa por debajo al hacer scroll,
+// por eso no pueden usar los colores semitransparentes de rowShade
+function stickyShade(estadoVerificacion: PhysicalInventoryItem["estadoVerificacion"]) {
+  switch (estadoVerificacion) {
+    case "Verificado":
+      return "bg-green-50";
+    case "Modificado":
+      return "bg-amber-50";
+    default:
+      return "bg-white";
+  }
+}
+
+export function PhysicalInventoryTable({ data, onToggleVerificado, guardando, enTransicion, mensajeVacio }: PhysicalInventoryTableProps) {
   return (
     <div className="bg-white border border-gray-200 rounded-lg shadow-sm flex-1 overflow-hidden flex flex-col">
       <div className="overflow-auto flex-1">
@@ -49,14 +64,22 @@ export function PhysicalInventoryTable({ data, onToggleVerificado, savingKey }: 
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 font-mono text-[13px] whitespace-nowrap">
+            {data.length === 0 && (
+              <tr>
+                <td colSpan={14} className="px-4 py-10 text-center text-sm text-gray-400 font-sans">
+                  {mensajeVacio}
+                </td>
+              </tr>
+            )}
             {data.map((row) => {
-              const rowKey = `${row.numeroPagina}-${row.codigoBarra}`;
-              const isSaving = savingKey === rowKey;
+              const rowKey = getRowKey(row);
+              const isSaving = guardando.has(rowKey);
+              const transicion = enTransicion.has(rowKey);
 
               return (
-                <tr key={rowKey} className={cn("transition-colors group", rowShade(row.estadoVerificacion))}>
-                  <td className="px-4 py-2 border-r border-gray-100 text-center text-gray-400 sticky left-0 z-10 bg-white group-hover:bg-blue-50/50">{row.numeroPagina}</td>
-                  <td className="px-4 py-2 border-r border-gray-100 font-medium text-gray-900 sticky left-[80px] z-10 bg-white group-hover:bg-blue-50/50 shadow-[2px_0_4px_rgba(0,0,0,0.06)]">{row.codigoBarra}</td>
+                <tr key={rowKey} className={cn("transition-all duration-300 group", rowShade(row.estadoVerificacion), transicion && "opacity-40")}>
+                  <td className={cn("px-4 py-2 border-r border-gray-100 text-center text-gray-400 sticky left-0 z-10 group-hover:bg-blue-50/50", stickyShade(row.estadoVerificacion))}>{row.numeroPagina}</td>
+                  <td className={cn("px-4 py-2 border-r border-gray-100 font-medium text-gray-900 sticky left-[80px] z-10 group-hover:bg-blue-50/50 shadow-[2px_0_4px_rgba(0,0,0,0.06)]", stickyShade(row.estadoVerificacion))}>{row.codigoBarra}</td>
                   <td className="px-4 py-2 border-r border-gray-100 text-gray-600">{row.referencia}</td>
                   <td className="px-4 py-2 border-r border-gray-100 text-right">{row.toma1}</td>
                   <td className="px-4 py-2 border-r border-gray-100 text-center text-gray-500 font-sans text-xs">{row.usuario1}</td>
@@ -111,8 +134,8 @@ export function PhysicalInventoryTable({ data, onToggleVerificado, savingKey }: 
                     <input
                       type="checkbox"
                       className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer disabled:opacity-50"
-                      checked={row.estadoVerificacion !== "Pendiente"}
-                      disabled={isSaving}
+                      checked={row.estadoVerificacion === "Verificado"}
+                      disabled={isSaving || transicion}
                       onChange={(e) => onToggleVerificado(row, e.target.checked)}
                     />
                     {row.estadoVerificacion === "Modificado" && (

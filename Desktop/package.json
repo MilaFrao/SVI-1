@@ -33,6 +33,9 @@
         "win": {
             "target": "nsis",
             "icon": "resources/icono.ico"
+        },
+        "nsis": {
+            "include": "build/installer.nsh"
         }
     }
 }

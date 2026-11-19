@@ -18,3 +18,8 @@ export interface PhysicalInventoryItem {
     estadoVerificacion: EstadoVerificacion;
     fechaVerificacion: string | null;
 }
+
+// Clave única de una fila: misma combinación que usa el backend para identificar la verificación
+export function getRowKey(item: Pick<PhysicalInventoryItem, "numeroPagina" | "codigoBarra">) {
+    return `${item.numeroPagina}-${item.codigoBarra}`;
+}

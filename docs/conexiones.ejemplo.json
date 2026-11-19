@@ -1,0 +1,6 @@
+{
+  "conexiones": [
+    { "alias": "Sucursal Centro", "grupo": "Sucursales", "servidor": "192.168.0.10", "base": "GDC_EJEMPLO_CENTRO", "usuario": "usuario_sql" },
+    { "alias": "Bodega Central", "grupo": "Bodegas", "servidor": "192.168.0.20", "base": "GDC_EJEMPLO_BODEGA", "usuario": "usuario_sql" }
+  ]
+}

@@ -9,7 +9,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     openExportsFolder: () => ipcRenderer.invoke('open-exports-folder'),
 
-    saveCredentials: (credentials) => ipcRenderer.invoke('credentials-save', credentials),
-    loadCredentials: () => ipcRenderer.invoke('credentials-load'),
-    clearCredentials: () => ipcRenderer.invoke('credentials-clear'),
+    cargarConexiones: () => ipcRenderer.invoke('conexiones-cargar'),
+    importarConexiones: () => ipcRenderer.invoke('conexiones-importar'),
+    agregarConexionManual: (conexion) => ipcRenderer.invoke('conexiones-agregar-manual', conexion),
+    guardarContrasena: (conexion, contrasena) => ipcRenderer.invoke('contrasena-guardar', { conexion, contrasena }),
+    obtenerContrasena: (conexion) => ipcRenderer.invoke('contrasena-obtener', conexion),
+    olvidarContrasena: (conexion) => ipcRenderer.invoke('contrasena-olvidar', conexion),
 });

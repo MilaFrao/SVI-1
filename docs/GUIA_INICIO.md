@@ -79,5 +79,3 @@ Publica el backend, compila el frontend, y genera el instalador en `Desktop/dist
 # 3. Dónde seguir leyendo
 
 - Organización del código y rutas de la API: `docs/ESTRUCTURA_PROYECTO.md`
-- Convenciones de código: `docs/CODING_RULES.md`
-- Reglas de Git y commits: `docs/VERSION_CONTROL.md`

@@ -75,5 +75,3 @@ Documentación interactiva disponible en desarrollo: `http://localhost:5066/scal
 # 3. Dónde seguir leyendo
 
 - Cómo levantar el entorno: `docs/GUIA_INICIO.md`
-- Convenciones de código: `docs/CODING_RULES.md`
-- Reglas de Git y commits: `docs/VERSION_CONTROL.md`
